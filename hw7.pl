@@ -29,7 +29,6 @@ sub optimal {
   my ( $action, $ref );
   my @p = @page;    # save page
   if ( grep { $_ eq $v } @page ) {
-
     # hit
     $action = "hit";
     $count{'hit'}++;
@@ -39,7 +38,6 @@ sub optimal {
     $action = "miss";
     $count{'miss'}++;
     if ( defined $i ) {
-
       # miss?
       $page[$i] = $v;
     }
