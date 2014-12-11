@@ -1,10 +1,8 @@
 #!/usr/bin/perl
 use feature qw(say);
 use List::Util qw(first);
-my @ref_list;
-my $frames = 4;
-my @page   = (-1) x $frames;
-my %count  = {};
+my @refs  = get_refs("/home/cst334/HW7/data.txt");
+my %count = {};
 
 sub get_refs {
   my $file;
@@ -25,49 +23,51 @@ sub print_frame {
 }
 
 sub optimal {
-  my ( $index, $v ) = (@_);
-  my ( $action, $ref );
-  my @p = @page;    # save page
-  if ( grep { $_ eq $v } @page ) {
+  my ( $page, $index, $ref ) = (@_);
+  my ( $v, $action ) = ( $ref->[$index], '' );
+  my @p = @{$page};    # save page
+  if ( grep { $_ eq $v } @{$page} ) {
     # hit
     $action = "hit";
     $count{'hit'}++;
   }
   else {
-    my $i = first { $page[$_] eq -1 } 0 .. $#page;
+    my $i = first { $page->[$_] eq -1 } 0 .. $#{$page};
     $action = "miss";
     $count{'miss'}++;
     if ( defined $i ) {
       # miss?
-      $page[$i] = $v;
+      $page->[$i] = $v;
     }
     else {
       # find replacement
-      my $max  = $page[0];
-      my $orig = $v;
       print_frame( \@p, $action, $v );
-      for my $val (@page) {
-        my $first = first { $ref_list[$_] eq $val } $index .. $#ref_list;
-        if ( $first == -1 ) {
+      my ( $max, $victim_index, $val ) = ( $page->[0], 0, $v );
+      for my $val ( @{$page} ) {
+        my $first = first { $ref->[$_] eq $val } $index .. $#{$ref};
+        if ( $first == -1 || $first > $max ) {
           $max = $first;
-          last;
-        }
-        elsif ( $first > $max ) {
-          $max = $first;
+          if ( $first == -1 ) {
+            last;
+          }
         }
       }
-      $action = "victim";
-      $v      = $ref_list[$max];
-      my $ii = first { $page[$_] eq $v } 0 .. $#page;
-      $page[$ii] = $orig;
+      $action       = "victim";
+      $victim_index = first { $page->[$_] eq $ref->[$max] } 0 .. $#{$page};
+      $v            = $page->[$victim_index];
+      $page->[$victim_index] = $val;
     }
   }
   print_frame( \@p, $action, $v );
 }
 
 # main
-@ref_list = get_refs("/home/cst334/HW7/data.txt");
-for ( 0 .. $#ref_list ) {
-  optimal( $_, $ref_list[$_] );
+sub run {
+  my ( $ref_list, $frames ) = @_;
+  my @pages = (-1) x $frames;
+  for ( 0 .. $#{$ref_list} ) {
+    optimal( \@pages, $_, $ref_list );
+  }
+  say "Total hits: $count{hit}\nTotal miss: $count{miss}";
 }
-say "Total hits: $count{hit}\nTotal miss: $count{miss}";
+run( \@refs, 4 );
