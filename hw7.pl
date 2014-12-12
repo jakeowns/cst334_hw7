@@ -1,73 +1,80 @@
 #!/usr/bin/perl
 use feature qw(say);
 use List::Util qw(first);
-my @refs  = get_refs("/home/cst334/HW7/data.txt");
-my %count = {};
+use constant {
+  EMPTY_PAGE => -1,
+  FRAMES     => 4
+};
+my ( $ref_str, $count ) = ( get_refs("/home/cst334/HW7/data.txt"), {} );
 
 sub get_refs {
-  my $file;
-  open my $fh, '<', $_[0] or die;
-  $file = <$fh>;
-  chomp $file;
+  open my $fh, '<', $_[0] or die("Error opening file.");
+  chomp( my $file = <$fh> );
   close $fh;
-  return split ',', $file;
+  return [ split ',', $file ];
+}
+
+sub first_occur {
+  my ( $val, $ref, $start ) = @_;
+  return first { $ref->[$_] eq $val } ( $start || 0 ) .. $#{$ref};
 }
 
 sub print_frame {
   my ( $p, $action, $ref_val ) = (@_);
   say $action . ' ' . $ref_val;
   for ( @{$p} ) {
-    if ( $_ eq -1 ) { $_ = ' '; }
+    $_ = ' ' if $_ eq EMPTY_PAGE;
     say '|' . $_ . '|';
   }
+  count_actions($action);
+}
+
+sub count_actions {
+  $count->{ $_[0] }++ if defined $_[0];
 }
 
 sub optimal {
-  my ( $page, $index, $ref ) = (@_);
-  my ( $v, $action ) = ( $ref->[$index], '' );
-  my @p = @{$page};    # save page
-  if ( grep { $_ eq $v } @{$page} ) {
+  my ( $index, $pages, $ref ) = (@_);
+  my ( $ref_val, $action ) = ( $ref->[$index], '' );
+  my @p = @{$pages};    # save page
+  if ( grep { $_ eq $ref_val } @{$pages} ) {
     # hit
     $action = "hit";
-    $count{'hit'}++;
   }
   else {
-    my $i = first { $page->[$_] eq -1 } 0 .. $#{$page};
+    # miss
+    my $empty = first_occur( EMPTY_PAGE, $pages );
     $action = "miss";
-    $count{'miss'}++;
-    if ( defined $i ) {
-      # miss?
-      $page->[$i] = $v;
+    if ( defined $empty ) {
+      $pages->[$empty] = $ref_val;
     }
     else {
       # find replacement
-      print_frame( \@p, $action, $v );
-      my ( $max, $victim_index, $val ) = ( $page->[0], 0, $v );
-      for my $val ( @{$page} ) {
-        my $first = first { $ref->[$_] eq $val } $index .. $#{$ref};
-        if ( $first == -1 || $first > $max ) {
-          $max = $first;
-          if ( $first == -1 ) {
-            last;
-          }
+      print_frame( \@p, $action, $ref_val );
+      my ( $furthest, $val, $victim ) = ( $pages->[0], $ref_val, 0 );
+      for ( @{$pages} ) {
+        my $first = first_occur( $_, $ref, $index );
+        if ( ( not defined $first ) || $first > $furthest ) {
+          $furthest = $first;
+          last unless defined $first;
         }
       }
-      $action       = "victim";
-      $victim_index = first { $page->[$_] eq $ref->[$max] } 0 .. $#{$page};
-      $v            = $page->[$victim_index];
-      $page->[$victim_index] = $val;
+      $action           = "victim";
+      $victim           = first_occur( $ref->[$furthest], $pages );
+      $ref_val          = $pages->[$victim];
+      $pages->[$victim] = $val;
     }
   }
-  print_frame( \@p, $action, $v );
+  print_frame( \@p, $action, $ref_val );
 }
 
 # main
 sub run {
-  my ( $ref_list, $frames ) = @_;
-  my @pages = (-1) x $frames;
-  for ( 0 .. $#{$ref_list} ) {
-    optimal( \@pages, $_, $ref_list );
+  my ( $ref_list, @pages ) = ( @_, (EMPTY_PAGE) x FRAMES );
+  for my $index ( 0 .. $#{$ref_list} ) {
+    optimal( $index, \@pages, $ref_list );
   }
-  say "Total hits: $count{hit}\nTotal miss: $count{miss}";
+  say "Total hits: $count->{hit}\n"
+    . "Total miss: $count->{miss}";
 }
-run( \@refs, 4 );
+run($ref_str);
